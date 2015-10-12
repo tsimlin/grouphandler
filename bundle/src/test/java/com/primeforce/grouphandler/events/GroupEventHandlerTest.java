@@ -50,8 +50,10 @@ public class GroupEventHandlerTest {
 		
 		//Arrange
 		
-		//prepare session
+		//prepare session & event activation
 		when(repository.loginAdministrative(null)).thenReturn(session);
+		when(session.getWorkspace()).thenReturn(workspace);
+		when(workspace.getObservationManager()).thenReturn(observationManager);
 		
 		//prepare event
 		EventIterator events = mock(EventIterator.class);
@@ -59,9 +61,6 @@ public class GroupEventHandlerTest {
 		Event event = createEvent(Event.NODE_ADDED, inputPath);
 		when(events.nextEvent()).thenReturn(event);
 		when(events.hasNext()).thenReturn(true).thenReturn(false);
-		//prepare activate
-		when(session.getWorkspace()).thenReturn(workspace);
-		when(workspace.getObservationManager()).thenReturn(observationManager);
 
 		//Act
 		//call activate for configs

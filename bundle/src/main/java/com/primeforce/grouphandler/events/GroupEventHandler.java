@@ -13,6 +13,8 @@ import javax.jcr.observation.ObservationManager;
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Properties;
+import org.apache.felix.scr.annotations.Property;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.Service;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
@@ -30,7 +32,11 @@ import com.day.cq.commons.jcr.JcrConstants;
  * @author akos
  *
  */
-@Component(immediate = true)
+@Component(immediate = true, metatype=true, label = "Spar Group Event Listener", description = "Updates ldap groups in /home/groups/ with 'ldap_' prefix.")
+@Properties({
+@Property(name=GroupEventHandler.GROUP_SUFFIX_CONFIG, label="Suffix", value="_ldap"),
+@Property(name=GroupEventHandler.GROUP_PATH_CONFIG, label="Path", value="/home/groups")
+})
 @Service
 public class GroupEventHandler implements EventListener {
 
@@ -38,19 +44,19 @@ public class GroupEventHandler implements EventListener {
 
 	private static final String PER = "/";
 
-	private static final String GROUP_SUFFIX_CONFIG = "group.suffixForAGroup";
+	public static final String GROUP_SUFFIX_CONFIG = "group.suffixForAGroup";
 	private static final String SUFFIX_DEFAULT = "_ldap";
 	private String suffix = "";
 
-	private static final String GROUP_PATH_CONFIG = "group.pathToListen";
+	public static final String GROUP_PATH_CONFIG = "group.pathToListen";
 	private static final String GROUP_PATH_DEFAULT = "/home/groups";
 	private String absPath = "";
 	private final boolean isDeep = true;
 
 	private final int events = Event.NODE_ADDED;
 
-	// a local change shouldn't fire an event; if true the event happens
-	private final boolean noLocal = false;
+	// true means that a local change shouldn't fire an event; if false the event happens
+	private final boolean noLocal = true;
 
 	private final String[] uuids = null;
 
@@ -88,20 +94,15 @@ public class GroupEventHandler implements EventListener {
 						.equals(UserConstants.NT_REP_GROUP);
 	}
 
-	@SuppressWarnings("deprecation")
 	private void completePathWithLdapAndMoveToNewPath(String path) {
 
-		Session localSession = null; 
-		
 		try {
-
-			localSession = repository.loginAdministrative(null);
-
 			log.debug("Try to complete groupname with " + suffix + " and move node on path: " + path);
 
 			String name = path.substring(path.lastIndexOf(PER));
+			//a loop because of the events is not possible.
 			if(name.contains(suffix)) {
-				throw new RepositoryException("Group with suffix:" + suffix + " created an Event! Shouldn't be happened.");
+				throw new RepositoryException("Group with suffix:" + suffix + " created an Event! Should not happen. Check noLocal property.");
 			}
 
 			// cut path
@@ -110,18 +111,13 @@ public class GroupEventHandler implements EventListener {
 			// change name
 			name = name.concat(suffix);
 
-			localSession.move(path, pathWithoutName.concat(name));
-			localSession.save();
+			observationSession.move(path, pathWithoutName.concat(name));
+			observationSession.save();
 
 			log.debug("Group(" + path + ") moved to new path: " + pathWithoutName.concat(name));
 
 		} catch (RepositoryException ex) {
 			log.error("Group(" + path + ") cannot be completed with " + suffix + " and cannot be moved.", ex);
-		} finally {
-			if (localSession != null) {
-				localSession.logout();
-				localSession = null;
-			}
 		}
 	}
 
