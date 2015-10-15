@@ -32,7 +32,7 @@ import com.day.cq.commons.jcr.JcrConstants;
  * @author akos
  *
  */
-@Component(immediate = true, metatype=true, label = "Spar Group Event Listener", description = "Updates ldap groups in /home/groups/ with 'ldap_' prefix.")
+@Component(immediate = true, metatype=true, label = "Group Event Listener", description = "Updates ldap groups in /home/groups/ with 'ldap_' prefix.")
 @Properties({
 @Property(name=GroupEventHandler.GROUP_SUFFIX_CONFIG, label="Suffix", value="_ldap"),
 @Property(name=GroupEventHandler.GROUP_PATH_CONFIG, label="Path", value="/home/groups")
