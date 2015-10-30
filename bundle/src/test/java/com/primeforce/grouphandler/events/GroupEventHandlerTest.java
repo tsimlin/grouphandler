@@ -1,6 +1,5 @@
 package com.primeforce.grouphandler.events;
 
-import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,7 +15,6 @@ import javax.jcr.Node;
 import javax.jcr.PathNotFoundException;
 import javax.jcr.ReferentialIntegrityException;
 import javax.jcr.RepositoryException;
-import javax.jcr.Session;
 import javax.jcr.UnsupportedRepositoryOperationException;
 import javax.jcr.Workspace;
 import javax.jcr.lock.LockException;
@@ -36,7 +34,6 @@ import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
 import org.apache.sling.jcr.api.SlingRepository;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
@@ -78,6 +75,7 @@ public class GroupEventHandlerTest {
 		
 	}
 
+	@SuppressWarnings("deprecation")
 	private void newLdapGroupAdded_LdapGroupAddedToCrxFolderWhatExistsOrNot(boolean crxFolderExists)
 			throws LoginException, RepositoryException,
 			UnsupportedRepositoryOperationException, PathNotFoundException,
