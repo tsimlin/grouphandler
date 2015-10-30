@@ -1,25 +1,16 @@
 package com.primeforce.grouphandler.events;
 
-import java.security.Principal;
 import java.util.Map;
 
-import javax.jcr.ItemExistsException;
 import javax.jcr.Node;
-import javax.jcr.NodeIterator;
 import javax.jcr.PathNotFoundException;
-import javax.jcr.PropertyIterator;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Workspace;
-import javax.jcr.lock.LockException;
-import javax.jcr.nodetype.ConstraintViolationException;
-import javax.jcr.nodetype.NoSuchNodeTypeException;
-import javax.jcr.nodetype.NodeType;
 import javax.jcr.observation.Event;
 import javax.jcr.observation.EventIterator;
 import javax.jcr.observation.EventListener;
 import javax.jcr.observation.ObservationManager;
-import javax.jcr.version.VersionException;
 
 import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
@@ -32,17 +23,11 @@ import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.UserManager;
-import org.apache.jackrabbit.commons.JcrUtils;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
-import org.apache.jackrabbit.oak.spi.security.user.action.AccessControlAction;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.jcr.api.SlingRepository;
-import org.apache.sling.jcr.base.util.AccessControlUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.day.cq.commons.jcr.JcrConstants;
-import com.day.cq.commons.jcr.JcrUtil;
 
 /**
  * Updates ldap groups in /home/groups/ with given e.g. '_ldap' suffix. Config :
@@ -51,11 +36,11 @@ import com.day.cq.commons.jcr.JcrUtil;
  * @author akos
  *
  */
-@Component(immediate = true, metatype = true, label = "Spar Group Event Listener", description = "Updates ldap groups in /home/groups/ with 'ldap_' prefix.")
+@Component(immediate = true, metatype = true, label = "Ldap Group Event Listener", description = "Updates ldap groups in /home/groups/ with 'ldap_' prefix.")
 @Properties({
-		@Property(name = GroupEventHandler.GROUP_PREFIX_CONFIG, label = "Prefix", value = "ldap_"),
-		@Property(name = GroupEventHandler.GROUP_FOLDER_LDAP_CONFIG, label = "Ldap group folder", value = "ldap"),
-		@Property(name = GroupEventHandler.GROUP_FOLDER_SPAR_CONFIG, label = "Spar folder", value = "spar"),
+		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "ldap_"),
+		@Property(name = GroupEventHandler.GROUP_FOLDER_CRX_CONFIG, label = "Crx folder", value = "crx"),
+		@Property(name = GroupEventHandler.GROUP_PREFIX_CRX_CONFIG, label = "Crx prefix", value = "crx_"),
 		@Property(name = GroupEventHandler.GROUP_PATH_CONFIG, label = "Path", value = "/home/groups") })
 @Service
 public class GroupEventHandler implements EventListener {
@@ -65,17 +50,17 @@ public class GroupEventHandler implements EventListener {
 
 	private static final String PER = "/";
 
-	public static final String GROUP_FOLDER_LDAP_CONFIG = "group.groupfolderldap";
-	private static final String GROUP_FOLDER_LDAP_DEFAULT = "ldap";
-	private String groupFolderLdap = "";
+	public static final String GROUP_FOLDER_CRX_CONFIG = "group.groupFolderCrx";
+	private static final String GROUP_FOLDER_CRX_DEFAULT = "crx";
+	private String groupFolderCrx = "";
 
-	public static final String GROUP_FOLDER_SPAR_CONFIG = "group.groupfolderspar";
-	private static final String GROUP_FOLDER_SPAR_DEFAULT = "spar";
-	private String groupFolderSpar = "";
+	public static final String GROUP_PREFIX_CRX_CONFIG = "group.groupPrefixCrx";
+	private static final String GROUP_PREFIX_CRX_CONFIG_DEFAULT = "crx_";
+	private String groupPrefixCrx = "";
 
-	public static final String GROUP_PREFIX_CONFIG = "group.prefixForAGroup";
-	private static final String PREFIX_DEFAULT = "ldap_";
-	private String prefix = "";
+	public static final String GROUP_PREFIX_LDAP_CONFIG = "group.groupPrefixLdap";
+	private static final String GROUP_PREFIX_LDAP_DEFAULT = "ldap_";
+	private String groupPrefixLdap = "";
 
 	public static final String GROUP_PATH_CONFIG = "group.pathToListen";
 	private static final String GROUP_PATH_DEFAULT = "/home/groups";
@@ -122,197 +107,75 @@ public class GroupEventHandler implements EventListener {
 	 * rep:Group
 	 */
 	private boolean ldapGroupHasBeenAdded(Event event) throws RepositoryException {
-		return Event.NODE_ADDED == event.getType()
+		Map info = event.getInfo();
+		return /*Event.NODE_ADDED == event.getType()
 				&& event.getInfo().get(JcrConstants.JCR_PRIMARYTYPE)
-						.equals(UserConstants.NT_REP_GROUP);
-				//TODO einschalten-> && ((String)event.getInfo().get(UserConstants.REP_PRINCIPAL_NAME)).startsWith("cn=");
+						.equals(UserConstants.NT_REP_GROUP)*/
+		//
+				info != null && info.containsKey("rep:fullname") && ((String)info.get("rep:fullname")).startsWith(groupPrefixLdap);
 	}
 
 	private void completePathWithLdapAndMoveToNewPath(String path) {
 		try {
-			log.debug("Try to complete groupname with " + prefix
+			log.debug("Try to complete groupname with " + groupPrefixLdap
 					+ " and move node on path: " + path);
 
-			String name = path.substring(path.lastIndexOf(PER) + 1);
+			String name = path.substring(path.lastIndexOf(groupPrefixLdap)+groupPrefixLdap.length());
 			// a loop because of the events is not possible.
-			if (name.contains(prefix)) {
-				throw new RepositoryException(
-						"Group with prefix:"
-								+ prefix
-								+ " created an Event! Should not happen. Check noLocal property.");
-			}
+			//TODO : vielleicht ist es nicht notig
+//			if (name.contains(ldapGroupPrefix)) {
+//				throw new RepositoryException(
+//						"Group with prefix:"
+//								+ ldapGroupPrefix
+//								+ " created an Event! Should not happen. Check noLocal property.");
+//			}
+			
+			// /home/groups/s/ldap_sa1
+			// ldap_sa1
+			// neu : spar_sa1
 			// change name
-			String groupNameCompletedWithPrefix = prefix.concat(name);
-
-			Node groupNode = null;
-			Node homeGroupNode = null;
+			String groupNameCompletedWithPrefix = groupPrefixCrx.concat(name);
+			
+			// ldap_sa1
+			// /home/groups/ + crx
+			Node groupFolderCrxNode = getOrCreateOurGroupFolder(homeGroupsFolder, groupFolderCrx);
+			// /home/groups/crx
+			
+			Node crxGroupNode = null;
+			Group crxGroup = null;
+			JackrabbitSession session = (JackrabbitSession) observationSession;
+			final UserManager userManager = session.getUserManager();
 			try {
-				homeGroupNode = observationSession.getNode(homeGroupsFolder);
-				groupNode = observationSession.getNode(groupNameCompletedWithPrefix);
+				crxGroupNode = groupFolderCrxNode.getNode(groupNameCompletedWithPrefix);
+				crxGroup = (Group) userManager.getAuthorizable(crxGroupNode.getPath());
 			} catch (PathNotFoundException pnfe) {
-				JackrabbitSession js = (JackrabbitSession) observationSession;
-				final UserManager userManager = js.getUserManager();
 //				UserManager userManager = AccessControlUtil.getUserManager(observationSession);
-				Group sparGroup = userManager.createGroup(groupNameCompletedWithPrefix);
-				Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizable(name);
-				sparGroup.addMember(ldapGroupAsAuthorizable);
+				String neueCrxGroupPath = groupFolderCrxNode.getPath().concat(PER).concat(groupNameCompletedWithPrefix);
+				// createGroup /home/groups/crx/spar_sa1
+				crxGroup = userManager.createGroup(neueCrxGroupPath);
 			}
+			Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizable(path);
+			crxGroup.addMember(ldapGroupAsAuthorizable);
 			
 			observationSession.save();
 
 		} catch (RepositoryException ex) {
-			log.error("Group(" + path + ") cannot be completed with " + prefix
+			log.error("Group(" + path + ") cannot be completed with " + groupPrefixLdap
 					+ " and cannot be moved.", ex);
 		}
+		
 	}
-	
+
+//	/**
+//	 * input
+//	 */home/groups/s/ldap_testgroup1
+//	 * result
+//	 * /home/groups/crx/crx_testgroup1 -> mit member : ldap_testgroup1
+//	 * 1. mit neu angelegten -> erwartete result: wie oben.
+//	 *
+//	 * 2. wenn die Crx Gruppe schon vorhanden ist, Logik durchlaufen lassen -> erwartete result: das gleiche wie beim 1. 
+//	 */
 	private void completePathWithLdapAndMoveToNewPath1(String path) {
-		try {
-			log.debug("Try to complete groupname with " + prefix
-					+ " and move node on path: " + path);
-
-			String name = path.substring(path.lastIndexOf(PER) + 1);
-			// a loop because of the events is not possible.
-			if (name.contains(prefix)) {
-				throw new RepositoryException(
-						"Group with prefix:"
-								+ prefix
-								+ " created an Event! Should not happen. Check noLocal property.");
-			}
-
-			Node ldapFolderNode = getOrCreateOurGroupFolder(homeGroupsFolder,
-					groupFolderLdap);
-
-			// change name
-			String groupNameCompletedWithPrefix = prefix.concat(name);
-
-			Node ldapGroupNode = null;
-			try {
-				ldapGroupNode = ldapFolderNode
-						.getNode(groupNameCompletedWithPrefix);
-				ldapGroupNode.remove();
-			} catch (PathNotFoundException pnfe) {
-				// it is okay, if that doesn't exist, we would like to remove
-				// it.
-			}
-
-			// String pathForLdapChildGroup =
-			// ldapFolderNode.getPath().concat(PER)
-			// .concat(groupNameCompletedWithPrefix);
-
-			String newLdapPath = ldapFolderNode.getPath().concat(PER)
-					.concat(groupNameCompletedWithPrefix);
-			observationSession.move(path, newLdapPath);
-			
-			observationSession.save();
-			Node sparFolderNode = getOrCreateOurGroupFolder(homeGroupsFolder,
-					groupFolderSpar);
-
-			// change name
-			String groupNameCompletedWithSpar = "spar_".concat(name);
-
-			Node sparGroupNode = null;
-			try {
-				sparGroupNode = sparFolderNode.getNode(groupNameCompletedWithSpar);
-				sparGroupNode.remove();
-			} catch (PathNotFoundException pnfe) {
-				// it is okay, if that doesn't exist.
-			}
-
-			observationSession.save();
-
-			UserManager userManager = AccessControlUtil.getUserManager(observationSession);
-			Group sparGroup = userManager.createGroup(groupNameCompletedWithSpar);
-			Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizable(name);
-			sparGroup.addMember(ldapGroupAsAuthorizable);
-
-			String sparGroupPathCompletedWithSparGroupName = sparFolderNode
-					.getPath().concat(PER).concat(groupNameCompletedWithSpar);
-			observationSession.move(sparGroup.getPath(),
-					sparGroupPathCompletedWithSparGroupName);
-
-			// Node inputNode = observationSession.getNode(path);
-			// Node copiedNode = JcrUtil.copy(inputNode, sparFolderNode, name,
-			// true);
-			// copiedNode.setProperty(UserConstants.REP_PRINCIPAL_NAME, name);
-			// copiedNode.setProperty(UserConstants.REP_AUTHORIZABLE_ID, name);
-
-			observationSession.save();
-
-			// observationSession.save();
-			//
-			// String pathForLdapChildGroup =
-			// ldapFolderNode.getPath().concat(PER)
-			// .concat(groupNameCompletedWithPrefix);
-			// observationSession.move(path, pathForLdapChildGroup);
-			// observationSession.save();
-
-			// TODO : most pedig csinalni kell egy parent-et neki a
-			// /home/groups/spar/alatt
-
-			// definialhato kene legyen a spar-os group-ok helye, meg az ldap-os
-			// group-ok helye is. Tolem lehet egymas alatt is.
-
-			// /home/groups/ldap megvan.
-
-			// /home/groups/g/gragraGroup -> /home/groups/g/ldap_gragraGroup
-			// -> /home/groups/ldap/
-
-		} catch (RepositoryException ex) {
-			log.error("Group(" + path + ") cannot be completed with " + prefix
-					+ " and cannot be moved.", ex);
-		}
-	}
-
-	private Node copy(Node src, Node dstParent, String name, boolean bestEffort)
-			throws RepositoryException {
-
-		if (name == null) {
-			name = src.getName();
-		}
-
-		if (dstParent.hasNode(name)) {
-			dstParent.getNode(name).remove();
-		}
-
-		Node dst = dstParent.addNode(name, src.getPrimaryNodeType().getName());
-		for (NodeType mix : src.getMixinNodeTypes()) {
-			try {
-				dst.addMixin(mix.getName());
-			} catch (RepositoryException e) {
-				if (!bestEffort) {
-					throw e;
-				}
-			}
-		}
-
-		for (PropertyIterator iter = src.getProperties(); iter.hasNext();) {
-			try {
-				copy(iter.nextProperty(), dst, null);
-			} catch (RepositoryException e) {
-				if (!bestEffort) {
-					throw e;
-				}
-			}
-		}
-
-		for (NodeIterator iter = src.getNodes(); iter.hasNext();) {
-			Node n = iter.nextNode();
-			// if (!n.getDefinition().isProtected()) {
-			try {
-				copy(n, dst, null, bestEffort);
-			} catch (RepositoryException e) {
-				if (!bestEffort) {
-					throw e;
-				}
-			}
-			// }
-		}
-		// copiedNode.setProperty(UserConstants.REP_PRINCIPAL_NAME, name);
-		// copiedNode.setProperty(UserConstants.REP_AUTHORIZABLE_ID, name);
-
-		return dst;
-
 	}
 
 	public static javax.jcr.Property copy(javax.jcr.Property src,
@@ -349,52 +212,6 @@ public class GroupEventHandler implements EventListener {
 		return folderNode;
 	}
 
-	private void completePathWithLdapAndMoveToNewPath2(String path) {
-
-		try {
-			log.debug("Try to complete groupname with " + prefix
-					+ " and move node on path: " + path);
-
-			String name = path.substring(path.lastIndexOf(PER) + 1);
-			// a loop because of the events is not possible.
-			if (name.contains(prefix)) {
-				throw new RepositoryException(
-						"Group with prefix:"
-								+ prefix
-								+ " created an Event! Should not happen. Check noLocal property.");
-			}
-
-			// cut path
-			String pathWithoutName = path.substring(0, path.lastIndexOf(name));
-
-			// change name
-			String ldapName = prefix.concat(name);
-
-			Node ldapGroup = JcrUtils.getOrCreateByPath(
-					pathWithoutName.concat(ldapName),
-					UserConstants.NT_REP_GROUP, observationSession);
-			// observationSession.getNode(path)
-
-			// if ldapGroup exists and has already a group, we remove that group
-			String pathForChildGroup = ldapGroup.getPath().concat(PER)
-					.concat(name);
-			if (ldapGroup.hasNode(pathForChildGroup)) {
-				Node node = ldapGroup.getNode(pathForChildGroup);
-				node.remove();
-			}
-
-			observationSession.move(path, pathForChildGroup);
-			observationSession.save();
-
-			log.debug("Group(" + path + ") moved to new path: "
-					+ pathWithoutName.concat(name));
-
-		} catch (RepositoryException ex) {
-			log.error("Group(" + path + ") cannot be completed with " + prefix
-					+ " and cannot be moved.", ex);
-		}
-	}
-
 	@Activate
 	public void activate(final Map<String, String> config)
 			throws RepositoryException {
@@ -419,14 +236,14 @@ public class GroupEventHandler implements EventListener {
 	}
 
 	private void readConfigs(final Map<String, String> config) {
-		prefix = PropertiesUtil.toString(config.get(GROUP_PREFIX_CONFIG),
-				PREFIX_DEFAULT);
+		groupPrefixLdap = PropertiesUtil.toString(config.get(GROUP_PREFIX_LDAP_CONFIG),
+				GROUP_PREFIX_LDAP_DEFAULT);
 		homeGroupsFolder = PropertiesUtil.toString(config.get(GROUP_PATH_CONFIG),
 				GROUP_PATH_DEFAULT);
-		groupFolderLdap = PropertiesUtil.toString(config.get(GROUP_FOLDER_LDAP_CONFIG),
-				GROUP_FOLDER_LDAP_DEFAULT);
-		groupFolderSpar = PropertiesUtil.toString(config.get(GROUP_FOLDER_SPAR_CONFIG),
-				GROUP_FOLDER_SPAR_DEFAULT);
+		groupFolderCrx = PropertiesUtil.toString(config.get(GROUP_FOLDER_CRX_CONFIG),
+				GROUP_FOLDER_CRX_DEFAULT);
+		groupPrefixCrx = PropertiesUtil.toString(config.get(GROUP_PREFIX_CRX_CONFIG),
+				GROUP_PREFIX_CRX_CONFIG_DEFAULT);
 	}
 
 	@Deactivate
