@@ -123,10 +123,18 @@ public class GroupEventHandler implements EventListener {
 			log.debug("Try to complete groupname with " + groupPrefixLdap
 					+ " and move node on path: " + path);
 
+			Node crxGroupNode = null;
+			Group crxGroup = null;
+			JackrabbitSession session = (JackrabbitSession) observationSession;
+			final UserManager userManager = session.getUserManager();
+			
+			Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizableByPath(path);
+			String ldapGroupName = ldapGroupAsAuthorizable.getID();	// ldap_group1
+			String name = ldapGroupName.substring(groupPrefixLdap.length()); // group1
 			//input e.g.:
 			// /home/groups/l/ldap_group1
 			// name : group1
-			String name = path.substring(path.lastIndexOf(groupPrefixLdap)+groupPrefixLdap.length());
+			//String name = path.substring(path.lastIndexOf(groupPrefixLdap)+groupPrefixLdap.length());
 
 			// change name
 			// alte e.g.: group1
@@ -136,10 +144,8 @@ public class GroupEventHandler implements EventListener {
 			// create or get /home/groups/crx
 			Node groupFolderCrxNode = getOrCreateOurGroupFolder(homeGroupsFolder, groupFolderCrx);
 			
-			Node crxGroupNode = null;
-			Group crxGroup = null;
-			JackrabbitSession session = (JackrabbitSession) observationSession;
-			final UserManager userManager = session.getUserManager();
+			
+			
 			try {
 				crxGroupNode = groupFolderCrxNode.getNode(groupNameCompletedWithPrefix);
 				// get group /home/groups/crx/crx_group1
@@ -150,7 +156,7 @@ public class GroupEventHandler implements EventListener {
 			}
 			
 			// add ldap_group1 as member to /home/groups/crx/crx_group1
-			Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizableByPath(path);
+			//Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizableByPath(path);
 			crxGroup.addMember(ldapGroupAsAuthorizable);
 			
 			observationSession.save();
