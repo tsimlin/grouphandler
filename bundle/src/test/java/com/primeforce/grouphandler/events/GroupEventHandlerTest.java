@@ -108,6 +108,7 @@ public class GroupEventHandlerTest {
 		Authorizable ldapGroup = mock(Group.class);
 		when(userManager.getAuthorizableByPath("/home/groups/t/ldap_testgroup")).thenReturn(ldapGroup);
 		when(userManager.getAuthorizable("crx_testgroup")).thenReturn(group);
+		when(ldapGroup.getID()).thenReturn("ldap_testgroup");
 		
 		Node crxFolderNode = mock(Node.class);
 		when(crxFolderNode.getPath()).thenReturn("/home/groups/crx");
