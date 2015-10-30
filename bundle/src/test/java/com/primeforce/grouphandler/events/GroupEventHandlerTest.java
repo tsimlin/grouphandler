@@ -55,7 +55,7 @@ public class GroupEventHandlerTest {
 
 	@SuppressWarnings("deprecation")
 	@Test
-	public void newGroupAdded_nameCompletedWithLdapMovedToLdapSparGroupCreated() throws RepositoryException {
+	public void newLdapGroupAdded_crxGroupCreatedInCrxFolderAndLdapGroupAdded() throws RepositoryException {
 		
 		//Arrange
 		
@@ -76,9 +76,9 @@ public class GroupEventHandlerTest {
 		when(session.getNode("/home/groups/")).thenReturn(homeGroupsNode);
 		when(session.getUserManager()).thenReturn(userManager);
 		Group group = mock(Group.class);
-		when(userManager.createGroup("/home/groups/crx/crx_testgroup")).thenReturn(group);
+		when(userManager.createGroup("crx_testgroup")).thenReturn(group);
 		Authorizable ldapGroup = mock(Group.class);
-		when(userManager.getAuthorizable("/home/groups/t/ldap_testgroup")).thenReturn(ldapGroup);
+		when(userManager.getAuthorizableByPath("/home/groups/t/ldap_testgroup")).thenReturn(ldapGroup);
 		
 		Node crxFolderNode = mock(Node.class);
 		when(crxFolderNode.getPath()).thenReturn("/home/groups/crx");

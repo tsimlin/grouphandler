@@ -29,6 +29,8 @@ import org.apache.sling.jcr.api.SlingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.day.cq.commons.jcr.JcrConstants;
+
 /**
  * Updates ldap groups in /home/groups/ with given e.g. '_ldap' suffix. Config :
  * /apps/aemgrouphandler/config/
@@ -108,11 +110,12 @@ public class GroupEventHandler implements EventListener {
 	 */
 	private boolean ldapGroupHasBeenAdded(Event event) throws RepositoryException {
 		Map info = event.getInfo();
-		return /*Event.NODE_ADDED == event.getType()
-				&& event.getInfo().get(JcrConstants.JCR_PRIMARYTYPE)
-						.equals(UserConstants.NT_REP_GROUP)*/
-		//
-				info != null && info.containsKey("rep:fullname") && ((String)info.get("rep:fullname")).startsWith(groupPrefixLdap);
+		//for testing from /useradmin
+		return Event.NODE_ADDED == event.getType()
+				&& info.get(JcrConstants.JCR_PRIMARYTYPE)
+						.equals(UserConstants.NT_REP_GROUP);
+		//for real ldap groups
+		//return info != null && info.containsKey("rep:fullname") && ((String)info.get("rep:fullname")).startsWith(groupPrefixLdap);
 	}
 
 	private void completePathWithLdapAndMoveToNewPath(String path) {
@@ -120,26 +123,18 @@ public class GroupEventHandler implements EventListener {
 			log.debug("Try to complete groupname with " + groupPrefixLdap
 					+ " and move node on path: " + path);
 
+			//input e.g.:
+			// /home/groups/l/ldap_group1
+			// name : group1
 			String name = path.substring(path.lastIndexOf(groupPrefixLdap)+groupPrefixLdap.length());
-			// a loop because of the events is not possible.
-			//TODO : vielleicht ist es nicht notig
-//			if (name.contains(ldapGroupPrefix)) {
-//				throw new RepositoryException(
-//						"Group with prefix:"
-//								+ ldapGroupPrefix
-//								+ " created an Event! Should not happen. Check noLocal property.");
-//			}
-			
-			// /home/groups/s/ldap_sa1
-			// ldap_sa1
-			// neu : spar_sa1
+
 			// change name
+			// alte e.g.: group1
+			// neu : crx_group1
 			String groupNameCompletedWithPrefix = groupPrefixCrx.concat(name);
 			
-			// ldap_sa1
-			// /home/groups/ + crx
+			// create or get /home/groups/crx
 			Node groupFolderCrxNode = getOrCreateOurGroupFolder(homeGroupsFolder, groupFolderCrx);
-			// /home/groups/crx
 			
 			Node crxGroupNode = null;
 			Group crxGroup = null;
@@ -147,14 +142,15 @@ public class GroupEventHandler implements EventListener {
 			final UserManager userManager = session.getUserManager();
 			try {
 				crxGroupNode = groupFolderCrxNode.getNode(groupNameCompletedWithPrefix);
-				crxGroup = (Group) userManager.getAuthorizable(crxGroupNode.getPath());
+				// get group /home/groups/crx/crx_group1
+				crxGroup = (Group) userManager.getAuthorizableByPath(crxGroupNode.getPath());
 			} catch (PathNotFoundException pnfe) {
-//				UserManager userManager = AccessControlUtil.getUserManager(observationSession);
-				String neueCrxGroupPath = groupFolderCrxNode.getPath().concat(PER).concat(groupNameCompletedWithPrefix);
-				// createGroup /home/groups/crx/spar_sa1
-				crxGroup = userManager.createGroup(neueCrxGroupPath);
+				// createGroup /home/groups/crx/crx_group1
+				crxGroup = userManager.createGroup(groupNameCompletedWithPrefix);
 			}
-			Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizable(path);
+			
+			// add ldap_group1 as member to /home/groups/crx/crx_group1
+			Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizableByPath(path);
 			crxGroup.addMember(ldapGroupAsAuthorizable);
 			
 			observationSession.save();
