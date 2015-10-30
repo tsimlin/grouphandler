@@ -2,8 +2,6 @@ package com.primeforce.grouphandler.events;
 
 import java.util.Map;
 
-import javax.jcr.Node;
-import javax.jcr.PathNotFoundException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Workspace;
@@ -42,22 +40,15 @@ import com.day.cq.commons.jcr.JcrConstants;
 @Properties({
 		@Property(name = "test", label = "Test with 'normal' group creation", boolValue = false),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "ldap_", description="prefix for the input ldap group"),
-		@Property(name = GroupEventHandler.GROUP_FOLDER_CRX_CONFIG, label = "Crx folder", value = "crx", description="Name of the crx folder"),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_CRX_CONFIG, label = "Crx prefix", value = "crx_", description="Prefix for the crx group"),
 		@Property(name = GroupEventHandler.GROUP_PATH_CONFIG, label = "Path", value = "/home/groups", description="Path to be checked by the Group Event Handler") })
 @Service
 public class GroupEventHandler implements EventListener {
 
-	private static final String PER = "/";
-
 	private static final Logger log = LoggerFactory
 			.getLogger(GroupEventHandler.class);
 
 	private boolean test = false;
-
-	public static final String GROUP_FOLDER_CRX_CONFIG = "group.groupFolderCrx";
-	private static final String GROUP_FOLDER_CRX_DEFAULT = "crx";
-	private String groupFolderCrx = "";
 
 	public static final String GROUP_PREFIX_CRX_CONFIG = "group.groupPrefixCrx";
 	private static final String GROUP_PREFIX_CRX_CONFIG_DEFAULT = "crx_";
@@ -129,8 +120,6 @@ public class GroupEventHandler implements EventListener {
 			log.debug("Try to complete groupname with " + groupPrefixLdap
 					+ " and move node on path: " + path);
 
-			Node crxGroupNode = null;
-			Group crxGroup = null;
 			JackrabbitSession session = (JackrabbitSession) observationSession;
 			final UserManager userManager = session.getUserManager();
 			
@@ -140,27 +129,20 @@ public class GroupEventHandler implements EventListener {
 			//input e.g.:
 			// /home/groups/l/ldap_group1
 			// name : group1
-			//String name = path.substring(path.lastIndexOf(groupPrefixLdap)+groupPrefixLdap.length());
 
 			// change name
 			// alte e.g.: group1
 			// neu : crx_group1
 			String groupNameCompletedWithPrefix = groupPrefixCrx.concat(name);
 			
-			// create or get /home/groups/crx
-			getOrCreateOurGroupFolder(homeGroupsFolder, groupFolderCrx);
-			
-			
-			
 			// get group /home/groups/crx/crx_group1
-			crxGroup = (Group) userManager.getAuthorizable(groupNameCompletedWithPrefix);
+			Group crxGroup = (Group) userManager.getAuthorizable(groupNameCompletedWithPrefix);
 			if(crxGroup == null) {
 				// createGroup /home/groups/crx/crx_group1
 				crxGroup = userManager.createGroup(groupNameCompletedWithPrefix);
 			}
 			
 			// add ldap_group1 as member to /home/groups/crx/crx_group1
-			//Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizableByPath(path);
 			crxGroup.addMember(ldapGroupAsAuthorizable);
 			
 			observationSession.save();
@@ -181,20 +163,6 @@ public class GroupEventHandler implements EventListener {
 //	 *
 //	 * 2. wenn die Crx Gruppe schon vorhanden ist, Logik durchlaufen lassen -> erwartete result: das gleiche wie beim 1. 
 //	 */
-
-	private Node getOrCreateOurGroupFolder(String groupFolder,
-			String ourGroupFolder) throws RepositoryException {
-		Node folderNode = null;
-		Node homeGroupNode = null;
-		try {
-			homeGroupNode = observationSession.getNode(groupFolder);
-			folderNode = homeGroupNode.getNode(ourGroupFolder);
-		} catch (PathNotFoundException pnfe) {
-			folderNode = homeGroupNode.addNode(ourGroupFolder,
-					UserConstants.NT_REP_AUTHORIZABLE_FOLDER);
-		}
-		return folderNode;
-	}
 
 	@Activate
 	public void activate(final Map<String, String> config)
@@ -224,8 +192,6 @@ public class GroupEventHandler implements EventListener {
 				GROUP_PREFIX_LDAP_DEFAULT);
 		homeGroupsFolder = PropertiesUtil.toString(config.get(GROUP_PATH_CONFIG),
 				GROUP_PATH_DEFAULT);
-		groupFolderCrx = PropertiesUtil.toString(config.get(GROUP_FOLDER_CRX_CONFIG),
-				GROUP_FOLDER_CRX_DEFAULT);
 		groupPrefixCrx = PropertiesUtil.toString(config.get(GROUP_PREFIX_CRX_CONFIG),
 				GROUP_PREFIX_CRX_CONFIG_DEFAULT);
 		test = PropertiesUtil.toBoolean(config.get("test"),

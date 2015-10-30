@@ -141,7 +141,6 @@ public class GroupEventHandlerTest {
 		Map<String, String>  map = new HashMap<String, String>();
 		map.put("group.pathToListen", "/home/groups/");
 		map.put("group.groupPrefixLdap", "ldap_");
-		map.put("group.groupFolderCrx", "crx");
 		map.put("group.groupPrefixCrx", "crx_");
 		return map;
 	}
