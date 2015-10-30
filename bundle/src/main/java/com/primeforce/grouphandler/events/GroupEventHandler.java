@@ -153,7 +153,7 @@ public class GroupEventHandler implements EventListener {
 			
 			
 			// get group /home/groups/crx/crx_group1
-			Group crxGroup = (Group) userManager.getAuthorizable(groupNameCompletedWithPrefix);
+			crxGroup = (Group) userManager.getAuthorizable(groupNameCompletedWithPrefix);
 			if(crxGroup == null) {
 				// createGroup /home/groups/crx/crx_group1
 				crxGroup = userManager.createGroup(groupNameCompletedWithPrefix);
