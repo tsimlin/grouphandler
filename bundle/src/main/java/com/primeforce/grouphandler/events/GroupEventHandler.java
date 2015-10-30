@@ -175,28 +175,6 @@ public class GroupEventHandler implements EventListener {
 //	 *
 //	 * 2. wenn die Crx Gruppe schon vorhanden ist, Logik durchlaufen lassen -> erwartete result: das gleiche wie beim 1. 
 //	 */
-	private void completePathWithLdapAndMoveToNewPath1(String path) {
-	}
-
-	public static javax.jcr.Property copy(javax.jcr.Property src,
-			Node dstParent, String name) throws RepositoryException {
-		if (!src.getDefinition().isProtected()) {
-			if (name == null) {
-				name = src.getName();
-			}
-
-			if (dstParent.hasProperty(name)) {
-				dstParent.getProperty(name).remove();
-			}
-
-			if (src.getDefinition().isMultiple()) {
-				return dstParent.setProperty(name, src.getValues());
-			}
-			return dstParent.setProperty(name, src.getValue());
-		}
-
-		return null;
-	}
 
 	private Node getOrCreateOurGroupFolder(String groupFolder,
 			String ourGroupFolder) throws RepositoryException {
