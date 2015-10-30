@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.PathNotFoundException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Workspace;
@@ -46,7 +48,7 @@ public class GroupEventHandlerTest {
 
 	@SuppressWarnings("deprecation")
 	@Test
-	public void newGroupAdded_nameCompletedWithLdap() throws RepositoryException {
+	public void newGroupAdded_nameCompletedWithLdapMovedToLdapSparGroupCreated() throws RepositoryException {
 		
 		//Arrange
 		
@@ -54,6 +56,19 @@ public class GroupEventHandlerTest {
 		when(repository.loginAdministrative(null)).thenReturn(session);
 		when(session.getWorkspace()).thenReturn(workspace);
 		when(workspace.getObservationManager()).thenReturn(observationManager);
+		
+		Node homeGroupsNode = mock(Node.class);
+		when(session.getNode("/home/groups/")).thenReturn(homeGroupsNode);
+		Node sparNode = mock(Node.class);
+		when(sparNode.getNode("spar_testgroup")).thenThrow(new PathNotFoundException());
+		when(homeGroupsNode.getNode("spar")).thenReturn(sparNode);
+		Node ldapNode = mock(Node.class);
+		when(ldapNode.getPath()).thenReturn("/home/groups/ldap");
+		when(ldapNode.getNode("ldap_testgroup")).thenThrow(new PathNotFoundException());
+		when(homeGroupsNode.getNode("ldap")).thenReturn(ldapNode);
+		
+//		Node node = mock(Node.class);
+//		when(session.getRootNode()).thenReturn(node);
 		
 		//prepare event
 		EventIterator events = mock(EventIterator.class);
@@ -70,7 +85,46 @@ public class GroupEventHandlerTest {
 		groupEventHandler.onEvent(events);
 		
 		//Assert
-		String expectedPath = "/home/groups/t/testgroup_ldap";
+		String expectedPath = "/home/groups/t/ldap_testgroup";
+		ArgumentCaptor<String> path1arg = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<String> path2arg = ArgumentCaptor.forClass(String.class);
+		   verify(session).move(path1arg.capture(), path2arg.capture());
+		   assertEquals("not as awaited", path1arg.getValue(), inputPath);
+		   assertEquals("not as awaited", path2arg.getValue(), expectedPath);
+
+		verify(session).save();
+	}
+
+	@SuppressWarnings("deprecation")
+//	@Test
+	public void newGroupAdded_nameCompletedWithLdap() throws RepositoryException {
+		
+		//Arrange
+		
+		//prepare session & event activation
+		when(repository.loginAdministrative(null)).thenReturn(session);
+		when(session.getWorkspace()).thenReturn(workspace);
+		when(workspace.getObservationManager()).thenReturn(observationManager);
+		
+		Node node = mock(Node.class);
+		when(session.getRootNode()).thenReturn(node);
+		
+		//prepare event
+		EventIterator events = mock(EventIterator.class);
+		String inputPath = "/home/groups/t/testgroup";
+		Event event = createEvent(Event.NODE_ADDED, inputPath);
+		when(events.nextEvent()).thenReturn(event);
+		when(events.hasNext()).thenReturn(true).thenReturn(false);
+
+		//Act
+		//call activate for configs
+		Map<String, String> config = createMapWithConfigs();
+		groupEventHandler.activate(config);
+		//call method to test
+		groupEventHandler.onEvent(events);
+		
+		//Assert
+		String expectedPath = "/home/groups/t/ldap_testgroup";
 		ArgumentCaptor<String> path1arg = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<String> path2arg = ArgumentCaptor.forClass(String.class);
 		   verify(session).move(path1arg.capture(), path2arg.capture());
@@ -82,8 +136,10 @@ public class GroupEventHandlerTest {
 
 	private Map<String, String> createMapWithConfigs() {
 		Map<String, String>  map = new HashMap<String, String>();
-		map.put("group.suffixForAGroup", "_ldap");
+		map.put("group.prefixForAGroup", "ldap_");
 		map.put("group.pathToListen", "/home/groups/");
+		map.put("group.groupfolderldap", "ldap");
+		map.put("group.groupfolderspar", "spar");
 		return map;
 	}
 
