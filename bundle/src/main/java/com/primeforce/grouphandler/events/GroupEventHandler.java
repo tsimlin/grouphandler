@@ -40,7 +40,7 @@ import com.day.cq.commons.jcr.JcrConstants;
  */
 @Component(immediate = true, metatype = true, label = "Ldap Group Event Listener", description = "Creates a crx group for the input ldap groups in /home/groups/crx with 'crx_' prefix.")
 @Properties({
-		@Property(name = "test", label = "Test with 'norma' group creation", boolValue = true),
+		@Property(name = "test", label = "Test with 'normal' group creation", boolValue = false),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "ldap_", description="prefix for the input ldap group"),
 		@Property(name = GroupEventHandler.GROUP_FOLDER_CRX_CONFIG, label = "Crx folder", value = "crx", description="Name of the crx folder"),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_CRX_CONFIG, label = "Crx prefix", value = "crx_", description="Prefix for the crx group"),
