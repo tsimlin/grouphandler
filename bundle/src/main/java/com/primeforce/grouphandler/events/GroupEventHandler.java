@@ -269,7 +269,7 @@ public class GroupEventHandler implements EventListener {
 		groupCheckProperty = PropertiesUtil.toString(config.get(GROUP_CHECK_LDAP_PROPERTY_CONFIG),
 				GROUP_CHECK_LDAP_PROPERTY_CONFIG_DEFAULT);
 		test = PropertiesUtil.toBoolean(config.get("test"),
-				true);
+				false);
 	}
 
 	@Deactivate
