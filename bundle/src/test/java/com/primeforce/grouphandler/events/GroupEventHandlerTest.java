@@ -141,7 +141,7 @@ public class GroupEventHandlerTest {
 		map.put("group.groupPrefixLdap", "ldap_");
 		map.put("group.groupPrefixCrx", "crx_");
 		map.put("group.groupCheckProperty", "rep:fullname");
-		map.put("test", "false");
+		map.put("test", "true");
 		return map;
 	}
 

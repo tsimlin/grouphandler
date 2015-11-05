@@ -4,8 +4,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import javax.jcr.Node;
+import javax.jcr.PathNotFoundException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.UnsupportedRepositoryOperationException;
+import javax.jcr.Value;
+import javax.jcr.ValueFormatException;
 import javax.jcr.Workspace;
 import javax.jcr.observation.Event;
 import javax.jcr.observation.EventIterator;
@@ -23,12 +28,15 @@ import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.jackrabbit.oak.commons.StringUtils;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
+import org.apache.jackrabbit.value.StringValue;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.jcr.api.SlingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.adobe.granite.security.user.UserProperties;
 import com.day.cq.commons.jcr.JcrConstants;
 
 /**
@@ -41,7 +49,7 @@ import com.day.cq.commons.jcr.JcrConstants;
 @Component(immediate = true, metatype = true, label = "Ldap Group Event Listener", description = "Creates a crx group for the input ldap groups in /home/groups/crx with 'crx_' prefix.")
 @Properties({
 		@Property(name = "test", label = "Test with 'normal' group creation", boolValue = false),
-		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "ldap_", description="prefix for the input ldap group"),
+		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "spar_", description="prefix for the input ldap group"),
 		@Property(name = GroupEventHandler.GROUP_CHECK_LDAP_PROPERTY_CONFIG, label = "Check Group", value = "rep:fullname", description="properties which has to be checked, if begins with ldap prefix."),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_CRX_CONFIG, label = "Crx prefix", value = "crx_", description="Prefix for the crx group"),
 		@Property(name = GroupEventHandler.GROUP_PATH_CONFIG, label = "Path", value = "/home/groups", description="Path to be checked by the Group Event Handler") })
@@ -62,7 +70,7 @@ public class GroupEventHandler implements EventListener {
 	private String groupCheckProperty = "";
 
 	public static final String GROUP_PREFIX_LDAP_CONFIG = "group.groupPrefixLdap";
-	private static final String GROUP_PREFIX_LDAP_DEFAULT = "ldap_";
+	private static final String GROUP_PREFIX_LDAP_DEFAULT = "spar_";
 	private String groupPrefixLdap = "";
 
 	public static final String GROUP_PATH_CONFIG = "group.pathToListen";
@@ -119,8 +127,22 @@ public class GroupEventHandler implements EventListener {
 					&& info.get(JcrConstants.JCR_PRIMARYTYPE).equals(UserConstants.NT_REP_GROUP);
 		} else {
 			log(info);
+			if (Event.NODE_ADDED != event.getType()
+					|| !info.get(JcrConstants.JCR_PRIMARYTYPE).equals(UserConstants.NT_REP_GROUP)) {
+				return false;
+			}
+
+			String name = event.getPath().substring(event.getPath().lastIndexOf("/")+1);
+			JackrabbitSession session = (JackrabbitSession) observationSession;
+			final UserManager userManager = session.getUserManager();
+			Authorizable group = userManager.getAuthorizable(name);
+			Value[] properties = group.getProperty(groupCheckProperty);
+			if (properties == null) {
+				return false;
+			}
+			Value property = properties[0];
 			//for real ldap groups
-			return info != null && info.containsKey(groupCheckProperty) && ((String)info.get(groupCheckProperty)).startsWith(groupPrefixLdap);
+			return property.getString().startsWith(groupPrefixLdap);
 		}
 	}
 
@@ -165,6 +187,22 @@ public class GroupEventHandler implements EventListener {
 			if(crxGroup == null) {
 				// createGroup /home/groups/crx/crx_group1
 				crxGroup = userManager.createGroup(groupNameCompletedWithPrefix);
+				try {
+					setGroupPropertyByLdapGroupProperty(
+							session, ldapGroupAsAuthorizable.getPath(), UserProperties.ABOUT_ME, crxGroup);
+				} catch (PathNotFoundException pne1) {
+					log.debug("no profile on group:" + ldapGroupAsAuthorizable.getPath() 
+							+ " aboutMe is not set.");
+				}
+
+				try {
+					setGroupPropertyByLdapGroupProperty(
+							session, ldapGroupAsAuthorizable.getPath(), UserProperties.GIVEN_NAME, crxGroup);
+				} catch (PathNotFoundException pne2) {
+					log.debug("no profile on group:" + ldapGroupAsAuthorizable.getPath() 
+							+ " set name as: " + groupNameCompletedWithPrefix);
+					crxGroup.setProperty(UserProperties.GIVEN_NAME, new StringValue(groupNameCompletedWithPrefix));
+				}
 			}
 			
 			// add ldap_group1 as member to /home/groups/crx/crx_group1
@@ -176,6 +214,15 @@ public class GroupEventHandler implements EventListener {
 			log.error("Group(" + path + ") cannot be completed with " + groupPrefixLdap
 					+ " and cannot be moved.", ex);
 		}
+		
+	}
+
+	private void setGroupPropertyByLdapGroupProperty(JackrabbitSession session,
+			String ldapGroupPath, String propertyName, Group crxGroup) throws RepositoryException {
+		
+		Node ldapGroupProfile = session.getNode(ldapGroupPath.concat("/").concat("profile"));
+		javax.jcr.Property propertyToAdd = ldapGroupProfile.getProperty(propertyName);
+		crxGroup.setProperty(propertyName, new StringValue(propertyToAdd.getString()));
 		
 	}
 
