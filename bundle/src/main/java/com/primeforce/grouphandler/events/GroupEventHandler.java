@@ -1,6 +1,8 @@
 package com.primeforce.grouphandler.events;
 
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -40,6 +42,7 @@ import com.day.cq.commons.jcr.JcrConstants;
 @Properties({
 		@Property(name = "test", label = "Test with 'normal' group creation", boolValue = false),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "ldap_", description="prefix for the input ldap group"),
+		@Property(name = GroupEventHandler.GROUP_CHECK_LDAP_PROPERTY_CONFIG, label = "Check Group", value = "rep:fullname", description="properties which has to be checked, if begins with ldap prefix."),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_CRX_CONFIG, label = "Crx prefix", value = "crx_", description="Prefix for the crx group"),
 		@Property(name = GroupEventHandler.GROUP_PATH_CONFIG, label = "Path", value = "/home/groups", description="Path to be checked by the Group Event Handler") })
 @Service
@@ -53,6 +56,10 @@ public class GroupEventHandler implements EventListener {
 	public static final String GROUP_PREFIX_CRX_CONFIG = "group.groupPrefixCrx";
 	private static final String GROUP_PREFIX_CRX_CONFIG_DEFAULT = "crx_";
 	private String groupPrefixCrx = "";
+
+	public static final String GROUP_CHECK_LDAP_PROPERTY_CONFIG = "group.groupCheckProperty";
+	private static final String GROUP_CHECK_LDAP_PROPERTY_CONFIG_DEFAULT = "rep:fullname";
+	private String groupCheckProperty = "";
 
 	public static final String GROUP_PREFIX_LDAP_CONFIG = "group.groupPrefixLdap";
 	private static final String GROUP_PREFIX_LDAP_DEFAULT = "ldap_";
@@ -106,12 +113,30 @@ public class GroupEventHandler implements EventListener {
 		@SuppressWarnings("rawtypes")
 		Map info = event.getInfo();
 		if (test) {
+			log(info);
 			//for testing from /useradmin
 			return Event.NODE_ADDED == event.getType()
 					&& info.get(JcrConstants.JCR_PRIMARYTYPE).equals(UserConstants.NT_REP_GROUP);
 		} else {
+			log(info);
 			//for real ldap groups
-			return info != null && info.containsKey("rep:fullname") && ((String)info.get("rep:fullname")).startsWith(groupPrefixLdap);
+			return info != null && info.containsKey(groupCheckProperty) && ((String)info.get(groupCheckProperty)).startsWith(groupPrefixLdap);
+		}
+	}
+
+	@SuppressWarnings("rawtypes")
+	private void log(Map info) {
+
+		if (info != null) {
+			Set keySet = info.keySet();
+			log.debug("Event happens.Keys in Event.Info Map :" + keySet.toString());
+			
+			if(info.entrySet().size() > 0) {
+				for(final Iterator iter = info.entrySet().iterator(); iter.hasNext();){
+					Map.Entry pair = (Map.Entry)iter.next();
+					log.debug("Key:" + pair.getKey() + " value:'" + pair.getValue() + "'");
+				}
+			}
 		}
 	}
 
@@ -194,6 +219,8 @@ public class GroupEventHandler implements EventListener {
 				GROUP_PATH_DEFAULT);
 		groupPrefixCrx = PropertiesUtil.toString(config.get(GROUP_PREFIX_CRX_CONFIG),
 				GROUP_PREFIX_CRX_CONFIG_DEFAULT);
+		groupCheckProperty = PropertiesUtil.toString(config.get(GROUP_CHECK_LDAP_PROPERTY_CONFIG),
+				GROUP_CHECK_LDAP_PROPERTY_CONFIG_DEFAULT);
 		test = PropertiesUtil.toBoolean(config.get("test"),
 				true);
 	}
