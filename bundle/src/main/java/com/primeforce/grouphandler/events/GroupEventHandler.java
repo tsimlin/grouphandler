@@ -8,9 +8,7 @@ import javax.jcr.Node;
 import javax.jcr.PathNotFoundException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.jcr.UnsupportedRepositoryOperationException;
 import javax.jcr.Value;
-import javax.jcr.ValueFormatException;
 import javax.jcr.Workspace;
 import javax.jcr.observation.Event;
 import javax.jcr.observation.EventIterator;
@@ -28,7 +26,6 @@ import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.UserManager;
-import org.apache.jackrabbit.oak.commons.StringUtils;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
 import org.apache.jackrabbit.value.StringValue;
 import org.apache.sling.commons.osgi.PropertiesUtil;
@@ -37,24 +34,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.adobe.granite.security.user.UserProperties;
+import com.adobe.granite.security.user.UserPropertiesService;
 import com.day.cq.commons.jcr.JcrConstants;
 
 /**
- * Updates ldap groups in /home/groups/ with given e.g. '_ldap' suffix. Config :
+ * Updates ldap groups in /home/groups/ with given e.g. 'ldap_' prefix. Config :
  * /apps/aemgrouphandler/config/
  * 
  * @author akos
  *
  */
-@Component(immediate = true, metatype = true, label = "Ldap Group Event Listener", description = "Creates a crx group for the input ldap groups in /home/groups/crx with 'crx_' prefix.")
+@Component(immediate = true, metatype = true, label = "Ldap Group Event Listener", description = "Creates a crx group for the input ldap groups in /home/groups/ with e.g. 'crx_' prefix or without prefix.")
 @Properties({
 		@Property(name = "test", label = "Test with 'normal' group creation", boolValue = false),
-		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "spar_", description="prefix for the input ldap group"),
+		@Property(name = GroupEventHandler.GROUP_PREFIX_LDAP_CONFIG, label = "Prefix", value = "ldap_", description="prefix for the input ldap group"),
 		@Property(name = GroupEventHandler.GROUP_CHECK_LDAP_PROPERTY_CONFIG, label = "Check Group", value = "rep:fullname", description="properties which has to be checked, if begins with ldap prefix."),
 		@Property(name = GroupEventHandler.GROUP_PREFIX_CRX_CONFIG, label = "Crx prefix", value = "crx_", description="Prefix for the crx group"),
 		@Property(name = GroupEventHandler.GROUP_PATH_CONFIG, label = "Path", value = "/home/groups", description="Path to be checked by the Group Event Handler") })
 @Service
 public class GroupEventHandler implements EventListener {
+
+	private static final String PER = "/";
 
 	private static final Logger log = LoggerFactory
 			.getLogger(GroupEventHandler.class);
@@ -70,7 +70,7 @@ public class GroupEventHandler implements EventListener {
 	private String groupCheckProperty = "";
 
 	public static final String GROUP_PREFIX_LDAP_CONFIG = "group.groupPrefixLdap";
-	private static final String GROUP_PREFIX_LDAP_DEFAULT = "spar_";
+	private static final String GROUP_PREFIX_LDAP_DEFAULT = "ldap_";
 	private String groupPrefixLdap = "";
 
 	public static final String GROUP_PATH_CONFIG = "group.pathToListen";
@@ -114,8 +114,13 @@ public class GroupEventHandler implements EventListener {
 	}
 
 	/**
-	 * group will be processed if : Event.NODE_ADDED and jcr:primaryType ==
-	 * rep:Group
+	 * in case of test==true the next condition will be checked: 
+	 * Event.NODE_ADDED and jcr:primaryType == rep:Group
+	 * 
+	 * in case of test==false the next condition will be checked:
+	 * Event.NODE_ADDED and jcr:primaryType == rep:Group
+	 * && if group.groupCheckProperty starts with group.groupPrefixLdap
+	 *  
 	 */
 	private boolean ldapGroupHasBeenAdded(Event event) throws RepositoryException {
 		@SuppressWarnings("rawtypes")
@@ -132,10 +137,8 @@ public class GroupEventHandler implements EventListener {
 				return false;
 			}
 
-			String name = event.getPath().substring(event.getPath().lastIndexOf("/")+1);
-			JackrabbitSession session = (JackrabbitSession) observationSession;
-			final UserManager userManager = session.getUserManager();
-			Authorizable group = userManager.getAuthorizable(name);
+			String name = getNameFromPath(event);
+			Authorizable group = getAuthorizableByName(name);
 			Value[] properties = group.getProperty(groupCheckProperty);
 			if (properties == null) {
 				return false;
@@ -144,6 +147,16 @@ public class GroupEventHandler implements EventListener {
 			//for real ldap groups
 			return property.getString().startsWith(groupPrefixLdap);
 		}
+	}
+
+	private Authorizable getAuthorizableByName(String name) throws RepositoryException {
+		JackrabbitSession session = (JackrabbitSession) observationSession;
+		final UserManager userManager = session.getUserManager();
+		return userManager.getAuthorizable(name);
+	}
+
+	private String getNameFromPath(Event event) throws RepositoryException {
+		return event.getPath().substring(event.getPath().lastIndexOf(PER)+1);
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -169,7 +182,6 @@ public class GroupEventHandler implements EventListener {
 
 			JackrabbitSession session = (JackrabbitSession) observationSession;
 			final UserManager userManager = session.getUserManager();
-			
 			Authorizable ldapGroupAsAuthorizable = userManager.getAuthorizableByPath(path);
 			String ldapGroupName = ldapGroupAsAuthorizable.getID();	// ldap_group1
 			String name = ldapGroupName.substring(groupPrefixLdap.length()); // group1
@@ -220,7 +232,7 @@ public class GroupEventHandler implements EventListener {
 	private void setGroupPropertyByLdapGroupProperty(JackrabbitSession session,
 			String ldapGroupPath, String propertyName, Group crxGroup) throws RepositoryException {
 		
-		Node ldapGroupProfile = session.getNode(ldapGroupPath.concat("/").concat("profile"));
+		Node ldapGroupProfile = session.getNode(ldapGroupPath.concat(PER).concat(UserPropertiesService.PROFILE_PATH));
 		javax.jcr.Property propertyToAdd = ldapGroupProfile.getProperty(propertyName);
 		crxGroup.setProperty(propertyName, new StringValue(propertyToAdd.getString()));
 		
