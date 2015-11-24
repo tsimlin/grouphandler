@@ -19,7 +19,7 @@
     <groupId>com.primeforce</groupId>
     <artifactId>aem-grouphandler</artifactId>
     <packaging>pom</packaging>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <description>aem-grouphandler</description>
     
     <modules>
